@@ -228,7 +228,7 @@ stages:
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: 'app'
-        path: '$(System.ArtifactsDirectory)'
+        path: '$(System.ArtifactsDirectory)/app'
       displayName: 'Download Node.js App Artifact'
 
     # Deploy app to Azure Web App Linux
