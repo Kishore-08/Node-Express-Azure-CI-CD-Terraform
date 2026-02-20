@@ -31,9 +31,7 @@ stages:
         sudo mv terraform /usr/local/bin/
         terraform -version
       displayName: "Install Terraform"
-      inputs:
-        terraformVersion: $(terraformVersion)
-
+      
     # Terraform Init
     - task: AzureCLI@2
       displayName: "Terraform Init"
