@@ -7,13 +7,14 @@ pr:
 variables:
   terraformVersion: '1.6.6'
   workingDirectory: 'terraform'
-  serviceConnection: 'azure-conn-terraform'   # your service connection name
+  serviceConnection: 'azure-conn-terraform'   # optional, only for AzureCLI login
+  # The following should be defined in Pipeline Variables as secrets
+  # ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_SUBSCRIPTION_ID, ARM_TENANT_ID
 
 pool:
   vmImage: 'ubuntu-latest'
 
 stages:
-
 
 # =====================================================
 # STAGE 1 — TERRAFORM PLAN (CI)
@@ -35,48 +36,50 @@ stages:
     - task: AzureCLI@2
       displayName: "Terraform Init"
       inputs:
-        azureSubscription: $(serviceConnection)
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
+          echo "Initializing Terraform..."
           terraform init
-      
+      env:
+        ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+        ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+        ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+        ARM_TENANT_ID: $(ARM_TENANT_ID)
 
     # Terraform Validate
     - task: AzureCLI@2
       displayName: "Terraform Validate"
       inputs:
-        azureSubscription: $(serviceConnection)
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
+          echo "Validating Terraform configuration..."
           terraform validate
-      
+      env:
+        ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+        ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+        ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+        ARM_TENANT_ID: $(ARM_TENANT_ID)
+
     # Terraform Plan
     - task: AzureCLI@2
       displayName: "Terraform Plan"
       inputs:
-        azureSubscription: $(serviceConnection)
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
+          echo "Running Terraform plan..."
           terraform plan -out=tfplan
-      
+      env:
+        ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+        ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+        ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+        ARM_TENANT_ID: $(ARM_TENANT_ID)
 
-    # Terraform Apply
-    - task: AzureCLI@2
-      displayName: "Terraform Plan"
-      inputs:
-        azureSubscription: $(serviceConnection)
-        scriptType: bash
-        scriptLocation: inlineScript
-        workingDirectory: $(workingDirectory)
-        inlineScript: |
-          terraform apply -auto-approve tfplan
-      
     # Publish plan artifact
     - task: PublishPipelineArtifact@1
       displayName: "Publish tfplan"
@@ -113,20 +116,30 @@ stages:
     - task: AzureCLI@2
       displayName: "Terraform Init"
       inputs:
-        azureSubscription: $(serviceConnection)
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
+          echo "Initializing Terraform..."
           terraform init
+      env:
+        ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+        ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+        ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+        ARM_TENANT_ID: $(ARM_TENANT_ID)
 
     # Terraform Apply
     - task: AzureCLI@2
       displayName: "Terraform Apply"
       inputs:
-        azureSubscription: $(serviceConnection)
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
+          echo "Applying Terraform plan..."
           terraform apply -auto-approve tfplan
+      env:
+        ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+        ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+        ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+        ARM_TENANT_ID: $(ARM_TENANT_ID)
