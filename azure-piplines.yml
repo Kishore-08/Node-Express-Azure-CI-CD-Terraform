@@ -40,6 +40,13 @@ stages:
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
+          echo "Logging in to Azure using SP..."
+          az login --service-principal \
+            -u $ARM_CLIENT_ID \
+            -p $ARM_CLIENT_SECRET \
+            --tenant $ARM_TENANT_ID
+          az account set --subscription $ARM_SUBSCRIPTION_ID
+
           echo "Initializing Terraform..."
           terraform init
       env:
@@ -50,29 +57,43 @@ stages:
 
     # Terraform Validate
     - task: AzureCLI@2
-      displayName: "Terraform Validate"
+      displayName: "Terraform Init"
       inputs:
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "Validating Terraform configuration..."
+          echo "Logging in to Azure using SP..."
+          az login --service-principal \
+            -u $ARM_CLIENT_ID \
+            -p $ARM_CLIENT_SECRET \
+            --tenant $ARM_TENANT_ID
+          az account set --subscription $ARM_SUBSCRIPTION_ID
+
+          echo "Initializing Terraform..."
           terraform validate
       env:
         ARM_CLIENT_ID: $(ARM_CLIENT_ID)
         ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
         ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
         ARM_TENANT_ID: $(ARM_TENANT_ID)
-
+    
     # Terraform Plan
     - task: AzureCLI@2
-      displayName: "Terraform Plan"
+      displayName: "Terraform Init"
       inputs:
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "Running Terraform plan..."
+          echo "Logging in to Azure using SP..."
+          az login --service-principal \
+            -u $ARM_CLIENT_ID \
+            -p $ARM_CLIENT_SECRET \
+            --tenant $ARM_TENANT_ID
+          az account set --subscription $ARM_SUBSCRIPTION_ID
+
+          echo "Initializing Terraform..."
           terraform plan -out=tfplan
       env:
         ARM_CLIENT_ID: $(ARM_CLIENT_ID)
