@@ -1,26 +1,39 @@
+# =====================================================
+# Azure DevOps Pipeline - Option A (CI/CD Separation)
+# =====================================================
+
+# Trigger pipeline on main branch
 trigger:
 - main
 
+# Pull Request trigger
 pr:
 - main
 
+# =====================================================
+# VARIABLES
+# =====================================================
 variables:
-  terraformVersion: '1.6.6'
-  workingDirectory: 'terraform'
-  serviceConnection: 'azure-conn-terraform'   # optional, only for AzureCLI login
-  # The following should be defined in Pipeline Variables as secrets
-  # ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_SUBSCRIPTION_ID, ARM_TENANT_ID
+  terraformVersion: '1.6.6'                    # Terraform version to install
+  workingDirectory: 'terraform'                # Terraform configuration folder
+  serviceConnection: 'azure-conn-terraform'    # Azure Service Connection
+  nodeVersion: '18.x'                          # Node.js version
 
+# Use Ubuntu agent for all jobs
 pool:
   vmImage: 'ubuntu-latest'
 
+# =====================================================
+# STAGES
+# =====================================================
 stages:
 
 # =====================================================
 # STAGE 1 — TERRAFORM PLAN (CI)
+# Validates the Terraform code and generates a plan
 # =====================================================
 - stage: Terraform_Plan
-  displayName: "Terraform Plan"
+  displayName: "Terraform Plan (CI)"
   jobs:
   - job: Plan
     displayName: "Run Terraform Plan"
@@ -31,7 +44,7 @@ stages:
       displayName: "Install Terraform"
       inputs:
         terraformVersion: $(terraformVersion)
-      
+
     # Terraform Init
     - task: AzureCLI@2
       displayName: "Terraform Init"
@@ -42,12 +55,8 @@ stages:
         workingDirectory: $(workingDirectory)
         inlineScript: |
           echo "Logging in to Azure using SP..."
-          az login --service-principal \
-            -u $ARM_CLIENT_ID \
-            -p $ARM_CLIENT_SECRET \
-            --tenant $ARM_TENANT_ID
+          az login --service-principal -u $ARM_CLIENT_ID -p $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
           az account set --subscription $ARM_SUBSCRIPTION_ID
-
           echo "Initializing Terraform..."
           terraform init
       env:
@@ -58,45 +67,31 @@ stages:
 
     # Terraform Validate
     - task: AzureCLI@2
-      displayName: "Terraform Init"
+      displayName: "Terraform Validate"
       inputs:
         azureSubscription: $(serviceConnection)
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "Logging in to Azure using SP..."
-          az login --service-principal \
-            -u $ARM_CLIENT_ID \
-            -p $ARM_CLIENT_SECRET \
-            --tenant $ARM_TENANT_ID
-          az account set --subscription $ARM_SUBSCRIPTION_ID
-
-          echo "Initializing Terraform..."
+          echo "Validating Terraform configuration..."
           terraform validate
       env:
         ARM_CLIENT_ID: $(ARM_CLIENT_ID)
         ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
         ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
         ARM_TENANT_ID: $(ARM_TENANT_ID)
-    
+
     # Terraform Plan
     - task: AzureCLI@2
-      displayName: "Terraform Init"
+      displayName: "Terraform Plan"
       inputs:
         azureSubscription: $(serviceConnection)
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "Logging in to Azure using SP..."
-          az login --service-principal \
-            -u $ARM_CLIENT_ID \
-            -p $ARM_CLIENT_SECRET \
-            --tenant $ARM_TENANT_ID
-          az account set --subscription $ARM_SUBSCRIPTION_ID
-
-          echo "Initializing Terraform..."
+          echo "Generating Terraform plan..."
           terraform plan -out=tfplan
       env:
         ARM_CLIENT_ID: $(ARM_CLIENT_ID)
@@ -104,19 +99,65 @@ stages:
         ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
         ARM_TENANT_ID: $(ARM_TENANT_ID)
 
-    # Publish plan artifact
+    # Publish Terraform plan as artifact for CD stage
     - task: PublishPipelineArtifact@1
-      displayName: "Publish tfplan"
+      displayName: "Publish Terraform Plan Artifact"
       inputs:
         targetPath: '$(workingDirectory)/tfplan'
         artifact: 'tfplan'
 
 # =====================================================
-# STAGE 2 — TERRAFORM APPLY (CD)
+# STAGE 2 — BUILD NODE.JS APP (CI)
+# Builds Node.js app and publishes artifact for deployment
+# =====================================================
+- stage: Build_NodeApp
+  displayName: "Build Node.js App (CI)"
+  dependsOn: Terraform_Plan
+  condition: succeeded()
+  jobs:
+  - job: Build
+    displayName: "Build Node.js App"
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    # Install Node.js
+    - task: NodeTool@0
+      inputs:
+        versionSpec: $(nodeVersion)
+      displayName: 'Install Node.js'
+
+    # Install dependencies and build app
+    - script: |
+        cd src
+        npm install
+        npm run build
+      displayName: 'Install dependencies and build app'
+
+    # Archive the app for deployment
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: 'src'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/app.zip'
+        replaceExistingArchive: true
+      displayName: 'Archive Node.js App as ZIP'
+
+    # Publish the app artifact for deployment stage
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/app.zip'
+        artifact: 'app'
+      displayName: 'Publish Node.js App Artifact'
+
+# =====================================================
+# STAGE 3 — TERRAFORM APPLY (CD)
+# Applies Terraform plan to create infrastructure
 # =====================================================
 - stage: Terraform_Apply
-  displayName: "Terraform Apply"
-  dependsOn: Terraform_Plan
+  displayName: "Terraform Apply (CD)"
+  dependsOn: [Terraform_Plan, Build_NodeApp]  # Run only after CI stages
   condition: succeeded()
   jobs:
   - job: Apply
@@ -129,23 +170,22 @@ stages:
       inputs:
         terraformVersion: $(terraformVersion)
 
-    # Download plan artifact
+    # Download Terraform plan artifact
     - task: DownloadPipelineArtifact@2
-      displayName: "Download tfplan"
+      displayName: "Download Terraform Plan Artifact"
       inputs:
         artifact: tfplan
         path: $(workingDirectory)
 
-    # Terraform Init
+    # Terraform Init (again, before apply)
     - task: AzureCLI@2
-      displayName: "Terraform Init"
+      displayName: "Terraform Init Before Apply"
       inputs:
         azureSubscription: $(serviceConnection)
         scriptType: bash
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "Initializing Terraform..."
           terraform init
       env:
         ARM_CLIENT_ID: $(ARM_CLIENT_ID)
@@ -162,10 +202,40 @@ stages:
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "Applying Terraform plan..."
           terraform apply -auto-approve tfplan
       env:
         ARM_CLIENT_ID: $(ARM_CLIENT_ID)
         ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
         ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
         ARM_TENANT_ID: $(ARM_TENANT_ID)
+
+# =====================================================
+# STAGE 4 — DEPLOY NODE.JS APP (CD)
+# Deploys the built Node.js app to Azure Web App
+# =====================================================
+- stage: Deploy_NodeApp
+  displayName: "Deploy Node.js App (CD)"
+  dependsOn: Terraform_Apply
+  condition: succeeded()
+  jobs:
+  - job: Deploy
+    displayName: "Deploy Node.js App"
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    # Download Node.js app artifact
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: 'app'
+        path: '$(System.ArtifactsDirectory)'
+      displayName: 'Download Node.js App Artifact'
+
+    # Deploy app to Azure Web App Linux
+    - task: AzureWebApp@1
+      inputs:
+        azureSubscription: 'azure-conn-terraform'   # Your Azure service connection
+        appType: 'webAppLinux'
+        appName: 'realworld-node-kishore123'       # Web App name (from Terraform output if desired)
+        package: '$(System.ArtifactsDirectory)/app/app.zip'
+      displayName: 'Deploy Node.js App to Azure Web App'
