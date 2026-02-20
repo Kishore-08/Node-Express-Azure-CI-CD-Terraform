@@ -40,16 +40,8 @@ stages:
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "ARM_CLIENT_ID=$ARM_CLIENT_ID"
-          echo "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET"
-          echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID"
-          echo "ARM_TENANT_ID=$ARM_TENANT_ID"
           terraform init
-      env:
-        ARM_CLIENT_ID: $(servicePrincipalId)
-        ARM_CLIENT_SECRET: $(servicePrincipalKey)
-        ARM_SUBSCRIPTION_ID: $(subscriptionId)
-        ARM_TENANT_ID: $(tenantId)
+      
 
     # Terraform Validate
     - task: AzureCLI@2
@@ -60,17 +52,8 @@ stages:
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "ARM_CLIENT_ID=$ARM_CLIENT_ID"
-          echo "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET"
-          echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID"
-          echo "ARM_TENANT_ID=$ARM_TENANT_ID"
           terraform validate
-      env:
-        ARM_CLIENT_ID: $(servicePrincipalId)
-        ARM_CLIENT_SECRET: $(servicePrincipalKey)
-        ARM_SUBSCRIPTION_ID: $(subscriptionId)
-        ARM_TENANT_ID: $(tenantId)
-
+      
     # Terraform Plan
     - task: AzureCLI@2
       displayName: "Terraform Plan"
@@ -80,16 +63,8 @@ stages:
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "ARM_CLIENT_ID=$ARM_CLIENT_ID"
-          echo "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET"
-          echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID"
-          echo "ARM_TENANT_ID=$ARM_TENANT_ID"
           terraform plan -out=tfplan
-      env:
-        ARM_CLIENT_ID: $(servicePrincipalId)
-        ARM_CLIENT_SECRET: $(servicePrincipalKey)
-        ARM_SUBSCRIPTION_ID: $(subscriptionId)
-        ARM_TENANT_ID: $(tenantId)
+      
 
     # Terraform Apply
     - task: AzureCLI@2
@@ -100,17 +75,8 @@ stages:
         scriptLocation: inlineScript
         workingDirectory: $(workingDirectory)
         inlineScript: |
-          echo "ARM_CLIENT_ID=$ARM_CLIENT_ID"
-          echo "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET"
-          echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID"
-          echo "ARM_TENANT_ID=$ARM_TENANT_ID"
           terraform apply -auto-approve tfplan
-      env:
-        ARM_CLIENT_ID: $(servicePrincipalId)
-        ARM_CLIENT_SECRET: $(servicePrincipalKey)
-        ARM_SUBSCRIPTION_ID: $(subscriptionId)
-        ARM_TENANT_ID: $(tenantId)
-
+      
     # Publish plan artifact
     - task: PublishPipelineArtifact@1
       displayName: "Publish tfplan"
